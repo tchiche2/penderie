@@ -329,8 +329,14 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRe
 import { getDatabase, ref, onValue, set, update, remove, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 /* ===== Référentiels ===== */
-const TYPES = ["Haut","Bas","Veste","Chaussures","Accessoire","Une-pièce"];
-const TYPE_PL = {"Haut":"Hauts","Bas":"Bas","Veste":"Vestes et manteaux","Chaussures":"Chaussures","Accessoire":"Accessoires","Une-pièce":"Une-pièces"};
+const TYPES = ["Haut","T-shirt","Chemise","Polo","Pull","Bas","Jean","Pantalon","Chino","Cargo","Short","Jogging","Veste","Chaussures","Ceinture","Accessoire","Une-pièce"];
+const TOPS = ["Haut","T-shirt","Chemise","Polo","Pull"];
+const BOTTOMS = ["Bas","Jean","Pantalon","Chino","Cargo","Short","Jogging"];
+const LOOPS = ["Jean","Pantalon","Chino","Cargo"];
+const cols = i => (i.colors&&i.colors.length) ? i.colors : (i.color?[i.color]:[]);
+const colTxt = i => cols(i).join(" / ");
+const dots = i => cols(i).map(c=>`<i class="dot" style="${sw(c)}"></i>`).join("");
+const TYPE_PL = {"Haut":"Hauts","T-shirt":"T-shirts","Chemise":"Chemises","Polo":"Polos","Pull":"Pulls","Ceinture":"Ceintures","Jean":"Jeans","Pantalon":"Pantalons","Chino":"Chinos","Cargo":"Cargos","Short":"Shorts","Jogging":"Joggings","Bas":"Bas","Veste":"Vestes et manteaux","Chaussures":"Chaussures","Accessoire":"Accessoires","Une-pièce":"Une-pièces"};
 const STYLES = ["Casual","Streetwear","Sport","Chic","Classique","Workwear"];
 const SEASONS = ["Été","Mi-saison","Hiver"];
 const WEATHER = ["Toutes","Chaud","Mi-saison","Froid"];
@@ -350,7 +356,7 @@ const STYLE_COMPAT = {
   Sport:["Sport","Streetwear"], Chic:["Chic","Classique"], Classique:["Classique","Chic","Casual"],
   Workwear:["Workwear","Casual","Streetwear"]
 };
-const ORDER = {"Veste":0,"Haut":1,"Une-pièce":1,"Bas":2,"Chaussures":3,"Accessoire":4};
+const ORDER = {"Veste":0,"Pull":1,"Haut":1,"T-shirt":1,"Chemise":1,"Polo":1,"Une-pièce":1,"Bas":2,"Jean":2,"Pantalon":2,"Chino":2,"Cargo":2,"Short":2,"Jogging":2,"Ceinture":2.5,"Chaussures":3,"Accessoire":4};
 
 /* ===== Utilitaires ===== */
 const $ = s => document.querySelector(s);
@@ -465,7 +471,8 @@ const Store = {
   },
   updateItem(it){
     const {id,...body}=it;
-    const clean={name:body.name||"",type:body.type,color:body.color,style:body.style,seasons:body.seasons||[],frontId:body.frontId,backId:body.backId,createdAt:body.createdAt||Date.now()};
+    const cl=cols(body);
+    const clean={name:body.name||"",type:body.type,color:cl[0]||body.color,colors:cl,style:body.style,seasons:body.seasons||[],frontId:body.frontId,backId:body.backId,createdAt:body.createdAt||Date.now()};
     return set(ref(db,`${this.base}/items/${id}`),clean);
   },
   deleteItem(it){
@@ -502,7 +509,9 @@ function render(){
 }
 function countCombos(){
   const c=t=>Store.items.filter(i=>i.type===t).length;
-  return (c("Haut")*c("Bas")+c("Une-pièce"))*c("Chaussures");
+  const tops=TOPS.reduce((n,t)=>n+c(t),0);
+  const bots=BOTTOMS.reduce((n,t)=>n+c(t),0);
+  return (tops*bots+c("Une-pièce"))*c("Chaussures");
 }
 function chipRow(el, values, current, onPick, opts={}){
   el.innerHTML = values.map(v=>`<button class="chip" aria-pressed="${v===current}" data-v="${esc(v)}">${opts.dot&&C[v]?`<i class="dot" style="${sw(v)}"></i>`:""}${esc(v)}${opts.count&&opts.count[v]!=null?` <span class="c">${opts.count[v]}</span>`:""}</button>`).join("");
@@ -511,11 +520,11 @@ function chipRow(el, values, current, onPick, opts={}){
 
 /* ===== Onglet Vêtements ===== */
 function tagHTML(i){
-  return `<button class="tag" data-id="${esc(i.id)}" aria-label="${esc(i.name||i.type)}, ${esc(i.color)}, ${esc(i.style)}">
+  return `<button class="tag" data-id="${esc(i.id)}" aria-label="${esc(i.name||i.type)}, ${esc(colTxt(i))}, ${esc(i.style)}">
     <span class="hole"></span>
     <div class="ph">${imgTag(FR(i))}</div>
     <div class="nm">${esc(i.name||i.type)}</div>
-    <div class="meta"><i class="dot" style="${sw(i.color)}"></i>${esc(i.color)} · ${esc(i.style)}</div>
+    <div class="meta">${dots(i)}${esc(colTxt(i))} · ${esc(i.style)}</div>
   </button>`;
 }
 function renderWardrobe(){
@@ -537,8 +546,8 @@ function renderWardrobe(){
   const pal = Object.entries(colorCounts).sort((a,b)=>b[1]-a[1]);
   const neutrals = Store.items.filter(i=>C[i.color]?.neutral).length;
   const q = ui.q.trim().toLowerCase();
-  const list = Store.items.filter(i=>(ui.type==="Tous"||i.type===ui.type) && (!ui.color||i.color===ui.color) &&
-    (!q || [i.name,i.type,i.color,i.style,...(i.seasons||[])].join(" ").toLowerCase().includes(q)));
+  const list = Store.items.filter(i=>(ui.type==="Tous"||i.type===ui.type) && (!ui.color||cols(i).includes(ui.color)) &&
+    (!q || [i.name,i.type,...cols(i),i.style,...(i.seasons||[])].join(" ").toLowerCase().includes(q)));
   let body;
   if(!list.length) body = `<div class="empty"><h3>Aucun vêtement trouvé</h3><p>Aucune pièce ne correspond à ta recherche ou à tes filtres.</p><button class="btn sec" data-act="reset">Effacer les filtres</button></div>`;
   else if(ui.type==="Tous") body = TYPES.filter(t=>list.some(i=>i.type===t)).map(t=>{ const g=list.filter(i=>i.type===t);
@@ -568,13 +577,13 @@ function renderFilters(){
   const seg=$("#fWeather");
   seg.innerHTML = WEATHER.map(w=>`<button aria-pressed="${w===ui.fWeather}" data-v="${w}">${w==="Toutes"?"Toute":w}</button>`).join("");
   $$("button",seg).forEach(b=>b.onclick=()=>{ui.fWeather=b.dataset.v;renderFilters();});
-  const present = new Set(Store.items.map(i=>i.color));
+  const present = new Set(Store.items.flatMap(cols));
   if(ui.fColor!=="Toutes" && !present.has(ui.fColor)) ui.fColor="Toutes";
   chipRow($("#fColor"), ["Toutes",...COLORS.map(c=>c.n).filter(c=>present.has(c))], ui.fColor, v=>{ui.fColor=v;renderFilters();}, {dot:true});
 }
 function layHTML(items){
   const sorted=[...items].sort((a,b)=>ORDER[a.type]-ORDER[b.type]);
-  const main=sorted.filter(i=>["Haut","Une-pièce","Bas"].includes(i.type));
+  const main=sorted.filter(i=>[...TOPS,"Une-pièce",...BOTTOMS].includes(i.type));
   const side=sorted.filter(i=>!main.includes(i));
   const tile=i=>`<div class="ph">${imgTag(ui.view==="back"?BK(i):FR(i))}<span class="lbl">${esc(i.type)}</span></div>`;
   const sideTiles = side.map(tile); while(sideTiles.length<2) sideTiles.push(`<div class="ph ghost"></div>`);
@@ -670,7 +679,7 @@ const pick=a=>a[Math.floor(Math.random()*a.length)];
 function generate(){
   const pool=Store.items.filter(seasonOK);
   const by=t=>pool.filter(i=>i.type===t);
-  const tops=by("Haut"), bottoms=by("Bas"), ones=by("Une-pièce"), shoes=by("Chaussures"), outers=by("Veste"), accs=by("Accessoire");
+  const tops=pool.filter(i=>TOPS.includes(i.type)), bottoms=pool.filter(i=>BOTTOMS.includes(i.type)), ones=by("Une-pièce"), shoes=by("Chaussures"), outers=by("Veste"), accs=by("Accessoire"), belts=by("Ceinture");
   const st=$("#genStatus");
   if(!shoes.length || (!ones.length && (!tops.length||!bottoms.length))){
     const miss=[]; if(!tops.length&&!ones.length) miss.push("un haut"); if(!bottoms.length&&!ones.length) miss.push("un bas"); if(!shoes.length) miss.push("des chaussures");
@@ -694,8 +703,16 @@ function generate(){
     const ou=outers.filter(fit);
     const wantOuter={Froid:1,Chaud:0,"Mi-saison":.7,Toutes:.4}[ui.fWeather];
     if(ou.length && Math.random()<wantOuter) items.push(pick(ou));
+    const bas = useOne ? null : base[1];
+    const nm = (bas?.name||"").toLowerCase();
+    const loops = bas && bas.style!=="Sport" && (
+      LOOPS.includes(bas.type) ||
+      (bas.type==="Short" && !/bain|sport/.test(nm)) ||
+      (bas.type==="Bas" && (cols(bas).includes("Denim") || /jean|pantalon|chino|cargo|costume/.test(nm))));
+    const needBelt = loops;
+    const bl=belts.filter(fit); if(bl.length && needBelt) items.push(pick(bl));
     const ac=accs.filter(fit); if(ac.length && Math.random()<.4) items.push(pick(ac));
-    if(ui.fColor!=="Toutes" && !items.some(i=>i.color===ui.fColor)) continue;
+    if(ui.fColor!=="Toutes" && !items.some(i=>cols(i).includes(ui.fColor))) continue;
     const key=items.map(i=>i.id).sort().join("|"); if(seen.has(key)) continue; seen.add(key);
     const cs=colorScore(items); if(cs.s<0) continue;
     const styleBonus=new Set(items.map(i=>i.style)).size===1?.8:0;
@@ -728,13 +745,17 @@ function formFields(d){
   return `
   <div class="field"><label for="fName">Nom <span class="hint" style="display:inline">(facultatif)</span></label><input type="text" id="fName" maxlength="60" placeholder="ex. Sweat gris à capuche" value="${esc(d.name||"")}"></div>
   <div class="field"><span class="lbl">Type</span><div class="chips" id="pType"></div></div>
-  <div class="field"><span class="lbl">Couleur principale</span><div class="chips" id="pColor"></div><p class="hint" id="colorHint"></p></div>
+  <div class="field"><span class="lbl">Couleurs</span><div class="chips" id="pColor"></div><p class="hint" id="colorHint">Plusieurs choix possibles. La première choisie = couleur principale.</p></div>
   <div class="field"><span class="lbl">Style</span><div class="chips" id="pStyle"></div></div>
   <div class="field"><span class="lbl">Saisons</span><div class="chips" id="pSeason"></div><p class="hint">Rien de sélectionné = porté toute l'année.</p></div>`;
 }
 function bindFields(d,onChange){
   const one=(sel,vals,key,opts)=>{ const draw=()=>chipRow($(sel),vals,d[key],v=>{d[key]=v;draw();onChange();},opts); draw(); return draw; };
-  const r={type:one("#pType",TYPES,"type"),color:one("#pColor",COLORS.map(c=>c.n),"color",{dot:true}),style:one("#pStyle",STYLES,"style")};
+  if(!d.colors) d.colors=cols(d);
+  const r={type:one("#pType",TYPES,"type"),style:one("#pStyle",STYLES,"style")};
+  r.color=()=>{ const el=$("#pColor"); el.innerHTML=COLORS.map(c=>c.n).map(v=>{ const k=d.colors.indexOf(v); return `<button class="chip" aria-pressed="${k>=0}" data-v="${esc(v)}"><i class="dot" style="${sw(v)}"></i>${esc(v)}${k===0&&d.colors.length>1?` <span class="c">principale</span>`:""}</button>`; }).join("");
+    $$("button",el).forEach(b=>b.onclick=()=>{ const v=b.dataset.v; d.colors=d.colors.includes(v)?d.colors.filter(x=>x!==v):[...d.colors,v]; d.color=d.colors[0]||null; r.color(); onChange(); }); };
+  r.color();
   r.seasons=()=>{ const el=$("#pSeason"); el.innerHTML=SEASONS.map(s=>`<button class="chip" aria-pressed="${d.seasons.includes(s)}" data-v="${s}">${s}</button>`).join("");
     $$("button",el).forEach(b=>b.onclick=()=>{ const v=b.dataset.v; d.seasons=d.seasons.includes(v)?d.seasons.filter(x=>x!==v):[...d.seasons,v]; r.seasons(); onChange(); }); };
   r.seasons(); $("#fName").oninput=e=>{d.name=e.target.value;onChange();};
@@ -748,7 +769,7 @@ function shotHTML(id,title,desc,step){
   </div>`;
 }
 function openAdd(){
-  const d={name:"",type:null,color:null,style:null,seasons:[]}; const photos={front:null,back:null}; let colorAuto=false;
+  const d={name:"",type:null,color:null,colors:[],style:null,seasons:[]}; const photos={front:null,back:null}; let colorAuto=false;
   openSheet("Nouveau vêtement", `
     <div class="shots">${shotHTML("sFront","Face","Touche pour photographier le devant, à plat sur un fond uni",1)}${shotHTML("sBack","Dos","Retourne le vêtement et photographie le dos",2)}</div>
     <div class="stepn"><b id="step3">3</b><span>Détails</span></div>
@@ -757,10 +778,10 @@ function openAdd(){
     <p class="hint" id="saveHint" style="text-align:center"></p>`);
   const r=bindFields(d,check);
   function check(){
-    const miss=[]; if(!photos.front) miss.push("photo de face"); if(!photos.back) miss.push("photo de dos"); if(!d.type) miss.push("type"); if(!d.color) miss.push("couleur"); if(!d.style) miss.push("style");
+    const miss=[]; if(!photos.front) miss.push("photo de face"); if(!photos.back) miss.push("photo de dos"); if(!d.type) miss.push("type"); if(!d.colors.length) miss.push("couleur"); if(!d.style) miss.push("style");
     $("#saveItem").disabled=!!miss.length;
     $("#saveHint").textContent=miss.length?`Il reste : ${miss.join(", ")}.`:"";
-    $("#step3").classList.toggle("done",!!(d.type&&d.color&&d.style));
+    $("#step3").classList.toggle("done",!!(d.type&&d.colors.length&&d.style));
   }
   check();
   const bindShot=(id,which)=>{
@@ -775,7 +796,7 @@ function openAdd(){
         ph.classList.add("has");
         ph.insertAdjacentHTML("afterbegin",`<img alt="" src="${res.data}"><span class="redo">Reprendre</span><span class="side-l">${which==="front"?"Face":"Dos"}</span>`);
         box.querySelector(".stepn b").classList.add("done");
-        if(which==="front" && res.color && (!d.color||colorAuto)){ d.color=res.color; colorAuto=true; r.color(); $("#colorHint").textContent=`Couleur détectée : ${res.color}. Corrige si besoin.`; }
+        if(which==="front" && res.color && (!d.colors.length||colorAuto)){ d.colors=[res.color]; d.color=res.color; colorAuto=true; r.color(); $("#colorHint").textContent=`Couleur détectée : ${res.color}. Corrige si besoin.`; }
       }catch(e){
         [...ph.children].forEach(c=>{ if(c!==inp) c.remove(); });
         ph.insertAdjacentHTML("afterbegin","<div>Photo illisible. Touche pour en prendre une autre.</div>");
@@ -785,17 +806,17 @@ function openAdd(){
     };
   };
   bindShot("sFront","front"); bindShot("sBack","back");
-  $("#pColor").addEventListener("click",()=>{ colorAuto=false; $("#colorHint").textContent=""; });
+  $("#pColor").addEventListener("click",()=>{ colorAuto=false; $("#colorHint").textContent="Plusieurs choix possibles. La première choisie = couleur principale."; });
   $("#saveItem").onclick=async()=>{
     const b=$("#saveItem"); b.disabled=true; b.textContent="Enregistrement…";
-    try{ await Store.addItem({name:d.name.trim(),type:d.type,color:d.color,style:d.style,seasons:d.seasons},photos.front,photos.back); closeSheet(); toast("Ajouté à la penderie"); }
+    try{ await Store.addItem({name:d.name.trim(),type:d.type,color:d.colors[0],colors:d.colors,style:d.style,seasons:d.seasons},photos.front,photos.back); closeSheet(); toast("Ajouté à la penderie"); }
     catch(e){ b.disabled=false; b.textContent="Ajouter à la penderie"; toast("Échec de l'enregistrement, réessaie","x"); }
   };
 }
 
 function openItem(it){
   if(!it) return;
-  const d={...it,seasons:[...(it.seasons||[])]};
+  const d={...it,colors:[...cols(it)],seasons:[...(it.seasons||[])]};
   openSheet(it.name||it.type, `
     <div class="dshots">
       <figure><div class="ph">${imgTag(FR(it),"Face")}</div><figcaption>Face</figcaption></figure>
@@ -818,7 +839,7 @@ function openOutfit(f){
   openSheet(f.name, `
     ${f.why?`<p class="why" style="margin:-6px 0 14px">${esc(f.why)}</p>`:""}
     <div class="strip">${items.map(i=>`<figure><div class="ph">${imgTag(BK(i),"Dos")}</div><figcaption>${esc(i.name||i.type)}, dos</figcaption></figure>`).join("")}</div>
-    <div class="list">${items.map(i=>`<button class="li" data-id="${esc(i.id)}"><div class="ph">${imgTag(FR(i))}</div><div><b>${esc(i.name||i.type)}</b><span>${esc(i.type)} · ${esc(i.color)} · ${esc(i.style)}</span></div></button>`).join("")}</div>
+    <div class="list">${items.map(i=>`<button class="li" data-id="${esc(i.id)}"><div class="ph">${imgTag(FR(i))}</div><div><b>${esc(i.name||i.type)}</b><span>${esc(i.type)} · ${esc(colTxt(i))} · ${esc(i.style)}</span></div></button>`).join("")}</div>
     <button class="btn block ${saved?"sec":""}" id="favT">${ico("heart",18)}${saved?"Retirer des favoris":"Ajouter aux favoris"}</button>`);
   $$("#panel .li").forEach(b=>b.onclick=()=>openItem(item(b.dataset.id)));
   $("#favT").onclick=async()=>{
