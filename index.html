@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Penderie">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
 html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden;max-width:100%}
 :root{
@@ -23,6 +23,7 @@ html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adju
   --r-lg:20px; --r-md:14px; --r-sm:10px;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 14px rgba(16,24,40,.06);
   --font:"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --serif:"DM Serif Display", Georgia, serif;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
 }
@@ -229,6 +230,10 @@ svg{flex:none}
 .toast svg{stroke:currentColor}
 @media (min-width:760px){.wrap{padding-left:28px;padding-right:28px}.grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+/* Titres en DM Serif Display */
+h1,h2,h3,.sheet-h h2{font-family:var(--serif);font-weight:400!important;letter-spacing:0!important}
+.brand h1,.gate h1{letter-spacing:-.01em!important}
 </style>
 </head>
 <body>
@@ -892,7 +897,7 @@ function openItem(it){
       <figure><div class="ph">${imgTag(FR(it),"Face")}</div><figcaption>Face</figcaption></figure>
       <figure><div class="ph">${imgTag(BK(it),"Dos")}</div><figcaption>Dos</figcaption></figure>
     </div>
-    <button class="btn sec block" id="compose" style="margin-bottom:16px">${ico("shuffle",16)}Composer des tenues avec ce vêtement</button>
+    <button class="btn sec block" id="compose" style="margin-bottom:16px">${ico("shuffle",16)}Tenues avec ce vêtement</button>
     ${formFields(d)}
     <div class="row"><button class="btn" id="upd" disabled>Enregistrer les modifications</button><button class="btn danger" id="del">${ico("trash",16)}Supprimer</button></div>`);
   bindFields(d,()=>{ $("#upd").disabled=false; });
