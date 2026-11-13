@@ -143,10 +143,12 @@ svg{flex:none}
 /* Carte tenue */
 .fits{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
 .fit{background:var(--surface);border-radius:var(--r-lg);padding:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
-.lay{display:grid;grid-template-columns:1.45fr 1fr;gap:6px;cursor:pointer;border:0;padding:0;background:none;text-align:left}
-.lay .col{display:flex;flex-direction:column;gap:6px}
+.lay{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);width:100%;gap:6px;cursor:pointer;border:0;padding:0;background:none;text-align:left}
+.lay .col{display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
 .lay .ph{aspect-ratio:auto;flex:1;min-height:0}
-.lay .main .ph,.lay .side .ph{aspect-ratio:1/1}
+.lay .main .ph{aspect-ratio:1/1}
+.lay .side .ph{aspect-ratio:auto;flex:1 1 0;min-height:0}
+.lay .side .ph img{object-fit:contain}
 .lay .side .ph.ghost{background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,transparent 8px 16px)}
 .lay .lbl{position:absolute;left:6px;bottom:6px;background:rgba(14,19,29,.7);color:#fff;font-size:.7rem;padding:2px 7px;border-radius:999px}
 .fit-f{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 2px}
@@ -676,8 +678,32 @@ function colorScore(items){
   return {s,label};
 }
 const pick=a=>a[Math.floor(Math.random()*a.length)];
+/* Chaleur d'un vêtement : "chaud" = été seulement, "froid" = hiver seulement, null = polyvalent */
+const HOT_RX=/bain|maillot|débardeur|debardeur|tong|claquette|sandale|short|bermuda|lin\b/;
+const COLD_RX=/doudoune|parka|manteau|puffer|polaire|fourr|bonnet|écharpe|echarpe|\bgants?\b|laine|col roul|moon ?boot|bottes? fourr/;
+function warmth(i){
+  const s=i.seasons||[], nm=(i.name||"").toLowerCase();
+  if(s.length===1&&s[0]==="Été") return "chaud";
+  if(s.length===1&&s[0]==="Hiver") return "froid";
+  if(i.type==="Short"||HOT_RX.test(nm)) return "chaud";
+  if(i.type==="Pull"||COLD_RX.test(nm)) return "froid";
+  return null;
+}
+function coherent(items){
+  const w=items.map(warmth);
+  if(w.includes("chaud")&&w.includes("froid")) return false;
+  const ss=items.map(i=>i.seasons||[]).filter(x=>x.length);
+  for(let a=0;a<ss.length;a++) for(let b=a+1;b<ss.length;b++) if(!ss[a].some(x=>ss[b].includes(x))) return false;
+  return true;
+}
+function weatherOK(i){
+  const w=warmth(i);
+  if(ui.fWeather==="Chaud") return w!=="froid";
+  if(ui.fWeather==="Froid") return w!=="chaud";
+  return true;
+}
 function generate(){
-  const pool=Store.items.filter(seasonOK);
+  const pool=Store.items.filter(i=>seasonOK(i)&&weatherOK(i));
   const by=t=>pool.filter(i=>i.type===t);
   const tops=pool.filter(i=>TOPS.includes(i.type)), bottoms=pool.filter(i=>BOTTOMS.includes(i.type)), ones=by("Une-pièce"), shoes=by("Chaussures"), outers=by("Veste"), accs=by("Accessoire"), belts=by("Ceinture");
   const st=$("#genStatus");
@@ -698,11 +724,14 @@ function generate(){
     if(!base.every(i=>ok.includes(i.style))) continue;
     if(ui.fStyle!=="Tous" && !base.some(i=>i.style===ui.fStyle)) continue;
     const fit=i=>ok.includes(i.style);
-    const sh=shoes.filter(fit); if(!sh.length) continue;
+    if(!coherent(base)) continue;
+    const sh=shoes.filter(fit).filter(x=>coherent([...base,x])); if(!sh.length) continue;
     const items=[...base,pick(sh)];
     const ou=outers.filter(fit);
     const wantOuter={Froid:1,Chaud:0,"Mi-saison":.7,Toutes:.4}[ui.fWeather];
-    if(ou.length && Math.random()<wantOuter) items.push(pick(ou));
+    const hot=items.some(i=>warmth(i)==="chaud");
+    const ou2=ou.filter(o=>!hot||warmth(o)!=="froid");
+    if(ou2.length && Math.random()<(hot?0:wantOuter)) items.push(pick(ou2));
     const bas = useOne ? null : base[1];
     const nm = (bas?.name||"").toLowerCase();
     const loops = bas && bas.style!=="Sport" && (
@@ -710,19 +739,26 @@ function generate(){
       (bas.type==="Short" && !/bain|sport/.test(nm)) ||
       (bas.type==="Bas" && (cols(bas).includes("Denim") || /jean|pantalon|chino|cargo|costume/.test(nm))));
     const needBelt = loops;
-    const bl=belts.filter(fit); if(bl.length && needBelt) items.push(pick(bl));
-    const ac=accs.filter(fit); if(ac.length && Math.random()<.4) items.push(pick(ac));
+    const bl=belts.filter(fit).filter(x=>coherent([...items,x])); if(bl.length && needBelt) items.push(pick(bl));
+    const ac=accs.filter(fit).filter(a=>coherent([...items,a])); if(ac.length && Math.random()<.4) items.push(pick(ac));
+    if(!coherent(items)) continue;
     if(ui.fColor!=="Toutes" && !items.some(i=>cols(i).includes(ui.fColor))) continue;
     const key=items.map(i=>i.id).sort().join("|"); if(seen.has(key)) continue; seen.add(key);
     const cs=colorScore(items); if(cs.s<0) continue;
     const styleBonus=new Set(items.map(i=>i.style)).size===1?.8:0;
-    out.push({key,itemIds:items.map(i=>i.id),score:cs.s+styleBonus+Math.random()*.7,name:base.map(i=>i.name||i.type).join(" et "),label:cs.label,why:""});
+    out.push({key,itemIds:items.map(i=>i.id),score:cs.s+styleBonus+Math.random()*2.5,name:base.map(i=>i.name||i.type).join(" et "),label:cs.label,why:""});
   }
+  const recent=new Set(ui.recent||[]);
+  const fresh=out.filter(f=>!recent.has(f.key));
+  const src = fresh.length>=6 ? fresh : [...fresh, ...out.filter(f=>recent.has(f.key))];
+  if(fresh.length<6) ui.recent=[];
+  out.length=0; out.push(...src);
   out.sort((a,b)=>b.score-a.score);
   const chosen=[], used={};
   for(const f of out){ const m=f.itemIds[0]; if((used[m]||0)>=2) continue; used[m]=(used[m]||0)+1; chosen.push(f); if(chosen.length===6) break; }
   for(const f of out){ if(chosen.length>=6) break; if(!chosen.includes(f)) chosen.push(f); }
   ui.generated=chosen;
+  ui.recent=[...(ui.recent||[]),...chosen.map(f=>f.key)].slice(-60);
   st.textContent = chosen.length ? `${plural(chosen.length,"tenue cohérente","tenues cohérentes")}. Relance pour d'autres combinaisons.` : "Aucune combinaison harmonieuse avec ces critères. Élargis le style, la météo ou la couleur.";
   renderResults();
   if(chosen.length) $("#results").scrollIntoView({behavior:"smooth",block:"start"});
