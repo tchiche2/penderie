@@ -735,7 +735,7 @@ function generate(){
     st.textContent=`Aucun haut ni bas de style ${ui.fStyle} dans ta penderie${ui.fWeather!=="Toutes"?" pour cette météo":""}.`; ui.generated=[]; renderResults(); return;
   }
   const seen=new Set(), out=[];
-  for(let t=0;t<1500;t++){
+  for(let t=0;t<3000;t++){
     const useOne = ones.length && (!tops.length||!bottoms.length||Math.random()<ones.length/(ones.length+tops.length));
     const base = useOne?[pick(ones)]:[pick(tops),pick(bottoms)];
     const anchor = ui.fStyle!=="Tous"?ui.fStyle:base[0].style;
@@ -776,10 +776,21 @@ function generate(){
   const src = fresh.length>=6 ? fresh : [...fresh, ...out.filter(f=>recent.has(f.key))];
   if(fresh.length<6) ui.recent=[];
   out.length=0; out.push(...src);
-  out.sort((a,b)=>b.score-a.score);
-  const chosen=[], used={};
-  for(const f of out){ const ks=f.itemIds.slice(0,2).filter(k=>k!==A?.id); if(ks.some(k=>(used[k]||0)>=2)) continue; ks.forEach(k=>used[k]=(used[k]||0)+1); chosen.push(f); if(chosen.length===6) break; }
-  for(const f of out){ if(chosen.length>=6) break; if(!chosen.includes(f)) chosen.push(f); }
+  // Tirage vraiment aléatoire : chaque haut a la même chance, sans répéter haut ni bas
+  const shuf=arr=>{ for(let k=arr.length-1;k>0;k--){ const j=Math.floor(Math.random()*(k+1)); [arr[k],arr[j]]=[arr[j],arr[k]]; } return arr; };
+  const groups={}; out.forEach(f=>{ const g=f.itemIds[0]===A?.id?(f.itemIds[1]||f.itemIds[0]):f.itemIds[0]; (groups[g]=groups[g]||[]).push(f); });
+  Object.values(groups).forEach(shuf);
+  const chosen=[], usedB=new Set();
+  for(let pass=0;pass<2&&chosen.length<6;pass++){
+    for(const g of shuf(Object.keys(groups))){
+      if(chosen.length>=6) break;
+      if(pass===0 && chosen.some(f=>f._g===g)) continue;
+      const list=groups[g].filter(f=>!chosen.includes(f));
+      const f=list.find(f=>pass>0||!usedB.has(f.itemIds[1])) || (pass>0?list[0]:null);
+      if(!f) continue; f._g=g; usedB.add(f.itemIds[1]); chosen.push(f);
+    }
+  }
+  if(chosen.length<6) for(const f of shuf(out)){ if(chosen.length>=6) break; if(!chosen.includes(f)) chosen.push(f); }
   ui.generated=chosen;
   ui.recent=[...(ui.recent||[]),...chosen.map(f=>f.key)].slice(-60);
   st.textContent = chosen.length ? `${A?`Avec ${A.name||A.type} : `:""}${plural(chosen.length,"tenue proposée","tenues proposées")}${total>chosen.length?" (il y en a beaucoup d'autres)":""}. Relance pour en voir d'autres.` : "Aucune combinaison harmonieuse avec ces critères. Élargis le style, la météo ou la couleur.";
