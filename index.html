@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#F4F5F7">
 <title>Penderie</title>
 <link rel="manifest" href="manifest.json">
@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
 <style>
+html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden;max-width:100%}
 :root{
   --bg:#F4F5F7; --surface:#FFFFFF; --surface-2:#ECEEF2; --ink:#141B2B; --ink-2:#3A4356; --muted:#6E7789; --line:#DDE1E8;
   --navy:#1F3358; --on-navy:#FFFFFF; --stitch:#D99A1E; --stitch-soft:#F6E7C6; --danger:#B3362F; --ok:#2E7D4F;
@@ -164,7 +165,7 @@ svg{flex:none}
 /* Feuille */
 .sheet{position:fixed;inset:0;z-index:40;visibility:hidden}
 .sheet .scrim{position:absolute;inset:0;background:rgba(8,12,20,.5);opacity:0;transition:opacity .2s}
-.panel{position:absolute;left:0;right:0;bottom:0;max-height:94%;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 18px calc(24px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.panel{position:absolute;left:0;right:0;bottom:0;max-height:94%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;background:var(--bg);border-radius:22px 22px 0 0;padding:10px 18px calc(24px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
 .sheet.open{visibility:visible}
 .sheet.open .scrim{opacity:1}
 .sheet.open .panel{transform:none}
@@ -178,11 +179,11 @@ svg{flex:none}
 .stepn b{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-size:.85rem}
 .stepn b.done{background:var(--ok)}
 .stepn span{font-weight:650}
-.shots{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
-.shot{display:flex;flex-direction:column;gap:8px}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:22px}
+.shot{display:flex;flex-direction:column;gap:8px;min-width:0}
 .shot .ph{border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;color:var(--muted);font-size:.86rem}
 .shot .ph.has{border-style:solid;border-color:transparent;padding:0}
-.shot .ph img{position:absolute;inset:0;opacity:1}
+.shot .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
 .shot .ph strong{display:block;color:var(--ink);font-size:.98rem;margin-bottom:4px}
 .shot label.ph{cursor:pointer;flex-direction:column;gap:8px}
 .shot label.ph svg{stroke:var(--navy)}
@@ -194,12 +195,12 @@ svg{flex:none}
 .field input[type=text]{width:100%;height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:16px}
 .field .chips{flex-wrap:wrap;overflow:visible;padding:0}
 .hint{font-size:.82rem;color:var(--muted);margin:6px 0 0}
-.dshots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
-.dshots figure{margin:0}
+.dshots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.dshots figure{margin:0;min-width:0}
 .dshots figcaption{font-size:.8rem;color:var(--muted);margin-top:5px}
 .strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:18px;margin:0 -18px 16px;padding:0 18px;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
-.strip figure{flex:0 0 72%;scroll-snap-align:start;margin:0}
+.strip figure{flex:0 0 72%;min-width:0;scroll-snap-align:start;margin:0}
 .strip figcaption{font-size:.85rem;margin-top:6px;color:var(--ink-2)}
 .list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
 .li{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:12px;padding:8px;border:0;text-align:left;width:100%}
@@ -304,6 +305,10 @@ svg{flex:none}
 <div class="sheet" id="sheet" aria-hidden="true"><div class="scrim"></div><div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="panel"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script>
+["gesturestart","gesturechange","gestureend"].forEach(e=>document.addEventListener(e,ev=>ev.preventDefault(),{passive:false}));
+document.addEventListener("touchmove",e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+</script>
 <script type="module">
 /* =========================================================
    CONFIG FIREBASE — colle ici la même config que Business Time
