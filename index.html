@@ -284,6 +284,7 @@ svg{flex:none}
         <div class="flt"><span class="lbl">Style</span><div class="chips" id="fStyle"></div></div>
         <div class="flt"><span class="lbl">Météo</span><div class="seg" id="fWeather"></div></div>
         <div class="flt"><span class="lbl">Couleur à porter</span><div class="chips" id="fColor"></div></div>
+        <div id="anchorBox"></div>
         <div class="gen-actions">
           <button class="btn" id="genBtn"><svg width="18" height="18"><use href="#i-shuffle"/></svg>Générer des tenues</button>
         </div>
@@ -574,7 +575,15 @@ function renderWardrobe(){
 }
 
 /* ===== Onglet Tenues ===== */
+function renderAnchor(){
+  const box=$("#anchorBox"); if(!box) return;
+  const A=ui.anchorId?item(ui.anchorId):null;
+  if(!A){ ui.anchorId=null; box.innerHTML=""; return; }
+  box.innerHTML=`<div class="flt"><span class="lbl">Tenues avec</span><div class="chips"><button class="chip" aria-pressed="true" id="anchorX">${dots(A)}${esc(A.name||A.type)} ✕</button></div></div>`;
+  $("#anchorX").onclick=()=>{ ui.anchorId=null; ui.recent=[]; renderAnchor(); };
+}
 function renderFilters(){
+  renderAnchor();
   chipRow($("#fStyle"), ["Tous",...STYLES], ui.fStyle, v=>{ui.fStyle=v;renderFilters();});
   const seg=$("#fWeather");
   seg.innerHTML = WEATHER.map(w=>`<button aria-pressed="${w===ui.fWeather}" data-v="${w}">${w==="Toutes"?"Toute":w}</button>`).join("");
@@ -703,9 +712,19 @@ function weatherOK(i){
   return true;
 }
 function generate(){
-  const pool=Store.items.filter(i=>seasonOK(i)&&weatherOK(i));
+  const A=ui.anchorId?item(ui.anchorId):null; if(!A) ui.anchorId=null;
+  const pool=Store.items.filter(i=>i===A||(seasonOK(i)&&weatherOK(i)));
   const by=t=>pool.filter(i=>i.type===t);
-  const tops=pool.filter(i=>TOPS.includes(i.type)), bottoms=pool.filter(i=>BOTTOMS.includes(i.type)), ones=by("Une-pièce"), shoes=by("Chaussures"), outers=by("Veste"), accs=by("Accessoire"), belts=by("Ceinture");
+  let tops=pool.filter(i=>TOPS.includes(i.type)), bottoms=pool.filter(i=>BOTTOMS.includes(i.type)), ones=by("Une-pièce"), shoes=by("Chaussures"), outers=by("Veste"), accs=by("Accessoire"), belts=by("Ceinture");
+  if(A){
+    if(TOPS.includes(A.type)){ tops=[A]; ones=[]; }
+    else if(BOTTOMS.includes(A.type)){ bottoms=[A]; ones=[]; }
+    else if(A.type==="Une-pièce"){ ones=[A]; tops=[]; bottoms=[]; }
+    else if(A.type==="Chaussures") shoes=[A];
+    else if(A.type==="Veste") outers=[A];
+    else if(A.type==="Ceinture") belts=[A];
+    else if(A.type==="Accessoire") accs=[A];
+  }
   const st=$("#genStatus");
   if(!shoes.length || (!ones.length && (!tops.length||!bottoms.length))){
     const miss=[]; if(!tops.length&&!ones.length) miss.push("un haut"); if(!bottoms.length&&!ones.length) miss.push("un bas"); if(!shoes.length) miss.push("des chaussures");
@@ -731,7 +750,8 @@ function generate(){
     const wantOuter={Froid:1,Chaud:0,"Mi-saison":.7,Toutes:.4}[ui.fWeather];
     const hot=items.some(i=>warmth(i)==="chaud");
     const ou2=ou.filter(o=>!hot||warmth(o)!=="froid");
-    if(ou2.length && Math.random()<(hot?0:wantOuter)) items.push(pick(ou2));
+    if(A?.type==="Veste"){ if(!ou2.includes(A)) continue; items.push(A); }
+    else if(ou2.length && Math.random()<(hot?0:wantOuter)) items.push(pick(ou2));
     const bas = useOne ? null : base[1];
     const nm = (bas?.name||"").toLowerCase();
     const loops = bas && bas.style!=="Sport" && (
@@ -739,8 +759,10 @@ function generate(){
       (bas.type==="Short" && !/bain|sport/.test(nm)) ||
       (bas.type==="Bas" && (cols(bas).includes("Denim") || /jean|pantalon|chino|cargo|costume/.test(nm))));
     const needBelt = loops;
-    const bl=belts.filter(fit).filter(x=>coherent([...items,x])); if(bl.length && needBelt) items.push(pick(bl));
-    const ac=accs.filter(fit).filter(a=>coherent([...items,a])); if(ac.length && Math.random()<.4) items.push(pick(ac));
+    const bl=belts.filter(fit).filter(x=>coherent([...items,x])); if(A?.type==="Ceinture"){ if(!needBelt||!bl.includes(A)) continue; items.push(A); }
+    else if(bl.length && needBelt) items.push(pick(bl));
+    const ac=accs.filter(fit).filter(a=>coherent([...items,a])); if(A?.type==="Accessoire"){ if(!ac.includes(A)) continue; items.push(A); }
+    else if(ac.length && Math.random()<.4) items.push(pick(ac));
     if(!coherent(items)) continue;
     if(ui.fColor!=="Toutes" && !items.some(i=>cols(i).includes(ui.fColor))) continue;
     const key=items.map(i=>i.id).sort().join("|"); if(seen.has(key)) continue; seen.add(key);
@@ -748,6 +770,7 @@ function generate(){
     const styleBonus=new Set(items.map(i=>i.style)).size===1?.8:0;
     out.push({key,itemIds:items.map(i=>i.id),score:cs.s+styleBonus+Math.random()*2.5,name:base.map(i=>i.name||i.type).join(" et "),label:cs.label,why:""});
   }
+  const total=out.length;
   const recent=new Set(ui.recent||[]);
   const fresh=out.filter(f=>!recent.has(f.key));
   const src = fresh.length>=6 ? fresh : [...fresh, ...out.filter(f=>recent.has(f.key))];
@@ -755,11 +778,11 @@ function generate(){
   out.length=0; out.push(...src);
   out.sort((a,b)=>b.score-a.score);
   const chosen=[], used={};
-  for(const f of out){ const m=f.itemIds[0]; if((used[m]||0)>=2) continue; used[m]=(used[m]||0)+1; chosen.push(f); if(chosen.length===6) break; }
+  for(const f of out){ const ks=f.itemIds.slice(0,2).filter(k=>k!==A?.id); if(ks.some(k=>(used[k]||0)>=2)) continue; ks.forEach(k=>used[k]=(used[k]||0)+1); chosen.push(f); if(chosen.length===6) break; }
   for(const f of out){ if(chosen.length>=6) break; if(!chosen.includes(f)) chosen.push(f); }
   ui.generated=chosen;
   ui.recent=[...(ui.recent||[]),...chosen.map(f=>f.key)].slice(-60);
-  st.textContent = chosen.length ? `${plural(chosen.length,"tenue cohérente","tenues cohérentes")}. Relance pour d'autres combinaisons.` : "Aucune combinaison harmonieuse avec ces critères. Élargis le style, la météo ou la couleur.";
+  st.textContent = chosen.length ? `${A?`Avec ${A.name||A.type} : `:""}${plural(chosen.length,"tenue proposée","tenues proposées")}${total>chosen.length?" (il y en a beaucoup d'autres)":""}. Relance pour en voir d'autres.` : "Aucune combinaison harmonieuse avec ces critères. Élargis le style, la météo ou la couleur.";
   renderResults();
   if(chosen.length) $("#results").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -858,9 +881,11 @@ function openItem(it){
       <figure><div class="ph">${imgTag(FR(it),"Face")}</div><figcaption>Face</figcaption></figure>
       <figure><div class="ph">${imgTag(BK(it),"Dos")}</div><figcaption>Dos</figcaption></figure>
     </div>
+    <button class="btn sec block" id="compose" style="margin-bottom:16px">${ico("shuffle",16)}Composer des tenues avec ce vêtement</button>
     ${formFields(d)}
     <div class="row"><button class="btn" id="upd" disabled>Enregistrer les modifications</button><button class="btn danger" id="del">${ico("trash",16)}Supprimer</button></div>`);
   bindFields(d,()=>{ $("#upd").disabled=false; });
+  $("#compose").onclick=()=>{ closeSheet(); ui.anchorId=it.id; ui.recent=[]; renderAnchor(); setTab("outfits"); generate(); };
   $("#upd").onclick=async()=>{ const b=$("#upd"); b.disabled=true; try{ await Store.updateItem({...d,name:(d.name||"").trim()}); closeSheet(); toast("Modifications enregistrées"); }catch(e){ b.disabled=false; toast("Échec, réessaie","x"); } };
   $("#del").onclick=async()=>{
     const b=$("#del"); if(b.dataset.c!=="1"){ b.dataset.c="1"; b.innerHTML=ico("trash",16)+"Confirmer la suppression"; return; }
