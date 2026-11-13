@@ -977,11 +977,11 @@ function openAccount(){
 /* ===== Navigation ===== */
 function setTab(t){
   ui.tab=t;
-  $$(".tab").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===t));
+  $$(".tab[data-tab]").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===t));
   $("#tab-wardrobe").hidden=t!=="wardrobe"; $("#tab-outfits").hidden=t!=="outfits"; $("#tab-saved").hidden=t!=="saved";
   window.scrollTo({top:0});
 }
-$$(".tab").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$$(".tab[data-tab]").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $("#addBtn").onclick=()=>{ if(Store.mode==="cloud") openAdd(); };
 $("#genBtn").onclick=generate;
 $("#acct").onclick=openAccount;
