@@ -342,6 +342,7 @@ import { getDatabase, ref, onValue, set, update, remove, get } from "https://www
 /* ===== Référentiels ===== */
 const TYPES = ["Haut","T-shirt","Chemise","Polo","Pull","Bas","Jean","Pantalon","Chino","Cargo","Short","Jogging","Veste","Chaussures","Ceinture","Accessoire","Une-pièce"];
 const TOPS = ["Haut","T-shirt","Chemise","Polo","Pull"];
+const UNDER = ["T-shirt","Haut"];
 const BOTTOMS = ["Bas","Jean","Pantalon","Chino","Cargo","Short","Jogging"];
 const LOOPS = ["Jean","Pantalon","Chino","Cargo"];
 const cols = i => (i.colors&&i.colors.length) ? i.colors : (i.color?[i.color]:[]);
@@ -349,6 +350,11 @@ const colTxt = i => cols(i).join(" / ");
 const dots = i => cols(i).map(c=>`<i class="dot" style="${sw(c)}"></i>`).join("");
 const TYPE_PL = {"Haut":"Hauts","T-shirt":"T-shirts","Chemise":"Chemises","Polo":"Polos","Pull":"Pulls","Ceinture":"Ceintures","Jean":"Jeans","Pantalon":"Pantalons","Chino":"Chinos","Cargo":"Cargos","Short":"Shorts","Jogging":"Joggings","Bas":"Bas","Veste":"Vestes et manteaux","Chaussures":"Chaussures","Accessoire":"Accessoires","Une-pièce":"Une-pièces"};
 const STYLES = ["Casual","Streetwear","Sport","Chic","Classique","Workwear"];
+/* Noms affichés en français (les valeurs enregistrées ne changent pas) */
+const STYLE_FR = {Casual:"Décontracté",Streetwear:"Urbain",Sport:"Sportif",Chic:"Chic",Classique:"Classique",Workwear:"Travail"};
+const sty = v => STYLE_FR[v]||v;
+const stys = i => (i.styles&&i.styles.length) ? i.styles : (i.style?[i.style]:[]);
+const styTxt = i => stys(i).map(sty).join(" / ");
 const SEASONS = ["Été","Mi-saison","Hiver"];
 const WEATHER = ["Toutes","Chaud","Mi-saison","Froid"];
 const COLORS = [
@@ -483,7 +489,7 @@ const Store = {
   updateItem(it){
     const {id,...body}=it;
     const cl=cols(body);
-    const clean={name:body.name||"",type:body.type,color:cl[0]||body.color,colors:cl,style:body.style,seasons:body.seasons||[],frontId:body.frontId,backId:body.backId,createdAt:body.createdAt||Date.now()};
+    const clean={name:body.name||"",type:body.type,sleeves:body.type==="Chemise"?(body.sleeves||null):null,color:cl[0]||body.color,colors:cl,style:stys(body)[0]||body.style,styles:stys(body),seasons:body.seasons||[],frontId:body.frontId,backId:body.backId,createdAt:body.createdAt||Date.now()};
     return set(ref(db,`${this.base}/items/${id}`),clean);
   },
   deleteItem(it){
@@ -525,17 +531,17 @@ function countCombos(){
   return (tops*bots+c("Une-pièce"))*c("Chaussures");
 }
 function chipRow(el, values, current, onPick, opts={}){
-  el.innerHTML = values.map(v=>`<button class="chip" aria-pressed="${v===current}" data-v="${esc(v)}">${opts.dot&&C[v]?`<i class="dot" style="${sw(v)}"></i>`:""}${esc(v)}${opts.count&&opts.count[v]!=null?` <span class="c">${opts.count[v]}</span>`:""}</button>`).join("");
+  el.innerHTML = values.map(v=>`<button class="chip" aria-pressed="${v===current}" data-v="${esc(v)}">${opts.dot&&C[v]?`<i class="dot" style="${sw(v)}"></i>`:""}${esc(opts.label?opts.label(v):v)}${opts.count&&opts.count[v]!=null?` <span class="c">${opts.count[v]}</span>`:""}</button>`).join("");
   $$("button",el).forEach(b=>b.onclick=()=>onPick(b.dataset.v));
 }
 
 /* ===== Onglet Vêtements ===== */
 function tagHTML(i){
-  return `<button class="tag" data-id="${esc(i.id)}" aria-label="${esc(i.name||i.type)}, ${esc(colTxt(i))}, ${esc(i.style)}">
+  return `<button class="tag" data-id="${esc(i.id)}" aria-label="${esc(i.name||i.type)}, ${esc(colTxt(i))}, ${esc(styTxt(i))}">
     <span class="hole"></span>
     <div class="ph">${imgTag(FR(i))}</div>
     <div class="nm">${esc(i.name||i.type)}</div>
-    <div class="meta">${dots(i)}${esc(colTxt(i))} · ${esc(i.style)}</div>
+    <div class="meta">${dots(i)}${esc(colTxt(i))} · ${esc(styTxt(i))}</div>
   </button>`;
 }
 function renderWardrobe(){
@@ -558,7 +564,7 @@ function renderWardrobe(){
   const neutrals = Store.items.filter(i=>C[i.color]?.neutral).length;
   const q = ui.q.trim().toLowerCase();
   const list = Store.items.filter(i=>(ui.type==="Tous"||i.type===ui.type) && (!ui.color||cols(i).includes(ui.color)) &&
-    (!q || [i.name,i.type,...cols(i),i.style,...(i.seasons||[])].join(" ").toLowerCase().includes(q)));
+    (!q || [i.name,i.type,...cols(i),...stys(i),...stys(i).map(sty),...(i.seasons||[])].join(" ").toLowerCase().includes(q)));
   let body;
   if(!list.length) body = `<div class="empty"><h3>Aucun vêtement trouvé</h3><p>Aucune pièce ne correspond à ta recherche ou à tes filtres.</p><button class="btn sec" data-act="reset">Effacer les filtres</button></div>`;
   else if(ui.type==="Tous") body = TYPES.filter(t=>list.some(i=>i.type===t)).map(t=>{ const g=list.filter(i=>i.type===t);
@@ -592,7 +598,7 @@ function renderAnchor(){
 }
 function renderFilters(){
   renderAnchor();
-  chipRow($("#fStyle"), ["Tous",...STYLES], ui.fStyle, v=>{ui.fStyle=v;renderFilters();});
+  chipRow($("#fStyle"), ["Tous",...STYLES], ui.fStyle, v=>{ui.fStyle=v;renderFilters();}, {label:sty});
   const seg=$("#fWeather");
   seg.innerHTML = WEATHER.map(w=>`<button aria-pressed="${w===ui.fWeather}" data-v="${w}">${w==="Toutes"?"Toute":w}</button>`).join("");
   $$("button",seg).forEach(b=>b.onclick=()=>{ui.fWeather=b.dataset.v;renderFilters();});
@@ -602,9 +608,10 @@ function renderFilters(){
 }
 function layHTML(items){
   const sorted=[...items].sort((a,b)=>ORDER[a.type]-ORDER[b.type]);
-  const main=sorted.filter(i=>[...TOPS,"Une-pièce",...BOTTOMS].includes(i.type));
+  const firstTop=items.find(i=>[...TOPS,"Une-pièce"].includes(i.type));
+  const main=[firstTop,...items.filter(i=>BOTTOMS.includes(i.type))].filter(Boolean);
   const side=sorted.filter(i=>!main.includes(i));
-  const tile=i=>`<div class="ph">${imgTag(ui.view==="back"?BK(i):FR(i))}<span class="lbl">${esc(i.type)}</span></div>`;
+  const tile=i=>`<div class="ph">${imgTag(ui.view==="back"?BK(i):FR(i))}<span class="lbl">${esc(i.type==="Chemise"&&!main.includes(i)?"Chemise ouverte":i.type)}</span></div>`;
   const sideTiles = side.map(tile); while(sideTiles.length<2) sideTiles.push(`<div class="ph ghost"></div>`);
   return `<div class="col main">${main.map(tile).join("")}</div><div class="col side">${sideTiles.join("")}</div>`;
 }
@@ -612,7 +619,7 @@ function fitHTML(f, savedId){
   const items=f.itemIds.map(item).filter(Boolean);
   if(items.length<2) return "";
   const saved = savedId ? {id:savedId} : Store.outfits.find(o=>o.key===f.key);
-  const styles=[...new Set(items.map(i=>i.style))].join(" + ");
+  const styles=f.style?sty(f.style):[...new Set(items.map(i=>sty(i.style)))].join(" + ");
   return `<article class="fit">
     <button class="lay" data-open="${esc(f.key)}" data-saved="${esc(savedId||"")}" aria-label="Voir la tenue ${esc(f.name)}">${layHTML(items)}</button>
     <div class="fit-f">
@@ -733,27 +740,43 @@ function generate(){
     else if(A.type==="Ceinture") belts=[A];
     else if(A.type==="Accessoire") accs=[A];
   }
+  const unders=pool.filter(i=>UNDER.includes(i.type)&&i!==A);
+  const shirts=pool.filter(i=>i.type==="Chemise");
   const st=$("#genStatus");
   if(!shoes.length || (!ones.length && (!tops.length||!bottoms.length))){
     const miss=[]; if(!tops.length&&!ones.length) miss.push("un haut"); if(!bottoms.length&&!ones.length) miss.push("un bas"); if(!shoes.length) miss.push("des chaussures");
     st.textContent=`Il manque ${miss.join(", ")}${ui.fWeather!=="Toutes"?" adaptés à cette météo":""} pour composer une tenue.`;
     ui.generated=[]; renderResults(); return;
   }
-  if(ui.fStyle!=="Tous" && ![...tops,...bottoms,...ones].some(i=>i.style===ui.fStyle)){
-    st.textContent=`Aucun haut ni bas de style ${ui.fStyle} dans ta penderie${ui.fWeather!=="Toutes"?" pour cette météo":""}.`; ui.generated=[]; renderResults(); return;
+  if(ui.fStyle!=="Tous" && ![...tops,...bottoms,...ones].some(i=>stys(i).includes(ui.fStyle))){
+    st.textContent=`Aucun haut ni bas de style ${sty(ui.fStyle)} dans ta penderie${ui.fWeather!=="Toutes"?" pour cette météo":""}.`; ui.generated=[]; renderResults(); return;
   }
   const seen=new Set(), out=[];
   for(let t=0;t<3000;t++){
     const useOne = ones.length && (!tops.length||!bottoms.length||Math.random()<ones.length/(ones.length+tops.length));
-    const base = useOne?[pick(ones)]:[pick(tops),pick(bottoms)];
-    const anchor = ui.fStyle!=="Tous"?ui.fStyle:base[0].style;
+    let base = useOne?[pick(ones)]:[pick(tops),pick(bottoms)];
+    // Chemise choisie comme pièce centrale : parfois portée ouverte sur un t-shirt / débardeur
+    let forceOver=null;
+    if(A?.type==="Chemise" && unders.length && Math.random()<.5){ base=[pick(unders),pick(bottoms)]; forceOver=A; }
+    const anchor = ui.fStyle!=="Tous"?ui.fStyle:pick(stys(base[0]));
     const ok = STYLE_COMPAT[anchor]||[anchor];
-    if(!base.every(i=>ok.includes(i.style))) continue;
-    if(ui.fStyle!=="Tous" && !base.some(i=>i.style===ui.fStyle)) continue;
-    const fit=i=>ok.includes(i.style);
+    const fit=i=>stys(i).some(x=>ok.includes(x));
+    if(!base.every(fit)) continue;
+    if(ui.fStyle!=="Tous" && !base.some(i=>stys(i).includes(ui.fStyle))) continue;
     if(!coherent(base)) continue;
     const sh=shoes.filter(fit).filter(x=>coherent([...base,x])); if(!sh.length) continue;
     const items=[...base,pick(sh)];
+    // Chemise ouverte par-dessus un t-shirt / débardeur
+    if(!useOne && UNDER.includes(base[0].type)){
+      const hotNow=items.some(i=>warmth(i)==="chaud");
+      if(forceOver){ if(!fit(forceOver)||(hotNow&&forceOver.sleeves==="Longues")||!coherent([...items,forceOver])) continue; items.push(forceOver); }
+      else{
+        const ov=shirts.filter(c=>fit(c)&&coherent([...items,c])&&(c.sleeves==="Courtes"||(!hotNow&&c.sleeves!=="Courtes")));
+        const pref=ov.filter(c=>c.sleeves==="Courtes");
+        const chance = pref.length ? .5 : .3;
+        if(ov.length && Math.random()<chance) items.push(pick(pref.length&&Math.random()<.75?pref:ov));
+      }
+    }
     const ou=outers.filter(fit);
     const wantOuter={Froid:1,Chaud:0,"Mi-saison":.7,Toutes:.4}[ui.fWeather];
     const hot=items.some(i=>warmth(i)==="chaud");
@@ -762,7 +785,7 @@ function generate(){
     else if(ou2.length && Math.random()<(hot?0:wantOuter)) items.push(pick(ou2));
     const bas = useOne ? null : base[1];
     const nm = (bas?.name||"").toLowerCase();
-    const loops = bas && bas.style!=="Sport" && (
+    const loops = bas && !(stys(bas).length===1&&stys(bas)[0]==="Sport") && (
       LOOPS.includes(bas.type) ||
       (bas.type==="Short" && !/bain|sport/.test(nm)) ||
       (bas.type==="Bas" && (cols(bas).includes("Denim") || /jean|pantalon|chino|cargo|costume/.test(nm))));
@@ -775,8 +798,8 @@ function generate(){
     if(ui.fColor!=="Toutes" && !items.some(i=>cols(i).includes(ui.fColor))) continue;
     const key=items.map(i=>i.id).sort().join("|"); if(seen.has(key)) continue; seen.add(key);
     const cs=colorScore(items); if(cs.s<0) continue;
-    const styleBonus=new Set(items.map(i=>i.style)).size===1?.8:0;
-    out.push({key,itemIds:items.map(i=>i.id),score:cs.s+styleBonus+Math.random()*2.5,name:base.map(i=>i.name||i.type).join(" et "),label:cs.label,why:""});
+    const styleBonus=items.every(i=>stys(i).includes(anchor))?.8:0;
+    out.push({key,itemIds:items.map(i=>i.id),score:cs.s+styleBonus+Math.random()*2.5,name:base.map(i=>i.name||i.type).join(" et ")+(items.some((i,k)=>k>1&&i.type==="Chemise")?" + chemise ouverte":""),label:cs.label,style:anchor,why:""});
   }
   const total=out.length;
   const recent=new Set(ui.recent||[]);
@@ -823,14 +846,24 @@ function formFields(d){
   return `
   <div class="field"><label for="fName">Nom <span class="hint" style="display:inline">(facultatif)</span></label><input type="text" id="fName" maxlength="60" placeholder="ex. Sweat gris à capuche" value="${esc(d.name||"")}"></div>
   <div class="field"><span class="lbl">Type</span><div class="chips" id="pType"></div></div>
+  <div class="field" id="fSleeves"><span class="lbl">Manches</span><div class="chips" id="pSleeves"></div><p class="hint">Les chemises à manches courtes peuvent être portées ouvertes sur un t-shirt ou un débardeur.</p></div>
   <div class="field"><span class="lbl">Couleurs</span><div class="chips" id="pColor"></div><p class="hint" id="colorHint">Plusieurs choix possibles. La première choisie = couleur principale.</p></div>
-  <div class="field"><span class="lbl">Style</span><div class="chips" id="pStyle"></div></div>
+  <div class="field"><span class="lbl">Style</span><div class="chips" id="pStyle"></div><p class="hint">Plusieurs choix possibles pour les pièces polyvalentes. Le premier = style principal.</p></div>
   <div class="field"><span class="lbl">Saisons</span><div class="chips" id="pSeason"></div><p class="hint">Rien de sélectionné = porté toute l'année.</p></div>`;
 }
 function bindFields(d,onChange){
   const one=(sel,vals,key,opts)=>{ const draw=()=>chipRow($(sel),vals,d[key],v=>{d[key]=v;draw();onChange();},opts); draw(); return draw; };
   if(!d.colors) d.colors=cols(d);
-  const r={type:one("#pType",TYPES,"type"),style:one("#pStyle",STYLES,"style")};
+  if(!d.styles) d.styles=stys(d);
+  const r={};
+  r.style=()=>{ const el=$("#pStyle"); el.innerHTML=STYLES.map(v=>{ const k=d.styles.indexOf(v); return `<button class="chip" aria-pressed="${k>=0}" data-v="${esc(v)}">${esc(sty(v))}${k===0&&d.styles.length>1?` <span class="c">principal</span>`:""}</button>`; }).join("");
+    $$("button",el).forEach(b=>b.onclick=()=>{ const v=b.dataset.v; d.styles=d.styles.includes(v)?d.styles.filter(x=>x!==v):[...d.styles,v]; d.style=d.styles[0]||null; r.style(); onChange(); }); };
+  r.style();
+  const showSleeves=()=>{ $("#fSleeves").hidden = d.type!=="Chemise"; };
+  r.type=()=>{ chipRow($("#pType"),TYPES,d.type,v=>{ d.type=v; r.type(); showSleeves(); onChange(); }); };
+  r.type(); showSleeves();
+  r.sleeves=()=>{ chipRow($("#pSleeves"),["Longues","Courtes"],d.sleeves||null,v=>{ d.sleeves = d.sleeves===v?null:v; r.sleeves(); onChange(); }); };
+  r.sleeves();
   r.color=()=>{ const el=$("#pColor"); el.innerHTML=COLORS.map(c=>c.n).map(v=>{ const k=d.colors.indexOf(v); return `<button class="chip" aria-pressed="${k>=0}" data-v="${esc(v)}"><i class="dot" style="${sw(v)}"></i>${esc(v)}${k===0&&d.colors.length>1?` <span class="c">principale</span>`:""}</button>`; }).join("");
     $$("button",el).forEach(b=>b.onclick=()=>{ const v=b.dataset.v; d.colors=d.colors.includes(v)?d.colors.filter(x=>x!==v):[...d.colors,v]; d.color=d.colors[0]||null; r.color(); onChange(); }); };
   r.color();
@@ -847,7 +880,7 @@ function shotHTML(id,title,desc,step){
   </div>`;
 }
 function openAdd(){
-  const d={name:"",type:null,color:null,colors:[],style:null,seasons:[]}; const photos={front:null,back:null}; let colorAuto=false;
+  const d={name:"",type:null,sleeves:null,color:null,colors:[],style:null,styles:[],seasons:[]}; const photos={front:null,back:null}; let colorAuto=false;
   openSheet("Nouveau vêtement", `
     <div class="shots">${shotHTML("sFront","Face","Touche pour photographier le devant, à plat sur un fond uni",1)}${shotHTML("sBack","Dos","Retourne le vêtement et photographie le dos",2)}</div>
     <div class="stepn"><b id="step3">3</b><span>Détails</span></div>
@@ -856,10 +889,10 @@ function openAdd(){
     <p class="hint" id="saveHint" style="text-align:center"></p>`);
   const r=bindFields(d,check);
   function check(){
-    const miss=[]; if(!photos.front) miss.push("photo de face"); if(!photos.back) miss.push("photo de dos"); if(!d.type) miss.push("type"); if(!d.colors.length) miss.push("couleur"); if(!d.style) miss.push("style");
+    const miss=[]; if(!photos.front) miss.push("photo de face"); if(!photos.back) miss.push("photo de dos"); if(!d.type) miss.push("type"); if(!d.colors.length) miss.push("couleur"); if(!d.styles.length) miss.push("style");
     $("#saveItem").disabled=!!miss.length;
     $("#saveHint").textContent=miss.length?`Il reste : ${miss.join(", ")}.`:"";
-    $("#step3").classList.toggle("done",!!(d.type&&d.colors.length&&d.style));
+    $("#step3").classList.toggle("done",!!(d.type&&d.colors.length&&d.styles.length));
   }
   check();
   const bindShot=(id,which)=>{
@@ -887,14 +920,14 @@ function openAdd(){
   $("#pColor").addEventListener("click",()=>{ colorAuto=false; $("#colorHint").textContent="Plusieurs choix possibles. La première choisie = couleur principale."; });
   $("#saveItem").onclick=async()=>{
     const b=$("#saveItem"); b.disabled=true; b.textContent="Enregistrement…";
-    try{ await Store.addItem({name:d.name.trim(),type:d.type,color:d.colors[0],colors:d.colors,style:d.style,seasons:d.seasons},photos.front,photos.back); closeSheet(); toast("Ajouté à la penderie"); }
+    try{ await Store.addItem({name:d.name.trim(),type:d.type,sleeves:d.type==="Chemise"?(d.sleeves||null):null,color:d.colors[0],colors:d.colors,style:d.styles[0],styles:d.styles,seasons:d.seasons},photos.front,photos.back); closeSheet(); toast("Ajouté à la penderie"); }
     catch(e){ b.disabled=false; b.textContent="Ajouter à la penderie"; toast("Échec de l'enregistrement, réessaie","x"); }
   };
 }
 
 function openItem(it){
   if(!it) return;
-  const d={...it,colors:[...cols(it)],seasons:[...(it.seasons||[])]};
+  const d={...it,styles:[...stys(it)],colors:[...cols(it)],seasons:[...(it.seasons||[])]};
   openSheet(it.name||it.type, `
     <div class="dshots">
       <figure><div class="ph">${imgTag(FR(it),"Face")}</div><figcaption>Face</figcaption></figure>
@@ -919,7 +952,7 @@ function openOutfit(f){
   openSheet(f.name, `
     ${f.why?`<p class="why" style="margin:-6px 0 14px">${esc(f.why)}</p>`:""}
     <div class="strip">${items.map(i=>`<figure><div class="ph">${imgTag(BK(i),"Dos")}</div><figcaption>${esc(i.name||i.type)}, dos</figcaption></figure>`).join("")}</div>
-    <div class="list">${items.map(i=>`<button class="li" data-id="${esc(i.id)}"><div class="ph">${imgTag(FR(i))}</div><div><b>${esc(i.name||i.type)}</b><span>${esc(i.type)} · ${esc(colTxt(i))} · ${esc(i.style)}</span></div></button>`).join("")}</div>
+    <div class="list">${items.map(i=>`<button class="li" data-id="${esc(i.id)}"><div class="ph">${imgTag(FR(i))}</div><div><b>${esc(i.name||i.type)}</b><span>${esc(i.type)} · ${esc(colTxt(i))} · ${esc(styTxt(i))}</span></div></button>`).join("")}</div>
     <button class="btn block ${saved?"sec":""}" id="favT">${ico("heart",18)}${saved?"Retirer des favoris":"Ajouter aux favoris"}</button>`);
   $$("#panel .li").forEach(b=>b.onclick=()=>openItem(item(b.dataset.id)));
   $("#favT").onclick=async()=>{
