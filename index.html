@@ -764,10 +764,14 @@ function generate(){
     if(!base.every(fit)) continue;
     if(ui.fStyle!=="Tous" && !base.some(i=>stys(i).includes(ui.fStyle))) continue;
     if(!coherent(base)) continue;
+    // Pas de chemise avec un jogging / survêtement
+    const bot0 = useOne ? null : base[1];
+    const sporty = !!bot0 && (bot0.type==="Jogging" || /jogg|surv/.test((bot0.name||"").toLowerCase()));
+    if(sporty && base[0].type==="Chemise") continue;
     const sh=shoes.filter(fit).filter(x=>coherent([...base,x])); if(!sh.length) continue;
     const items=[...base,pick(sh)];
     // Chemise ouverte par-dessus un t-shirt / débardeur
-    if(!useOne && UNDER.includes(base[0].type)){
+    if(!useOne && !sporty && UNDER.includes(base[0].type)){
       const hotNow=items.some(i=>warmth(i)==="chaud");
       if(forceOver){ if(!fit(forceOver)||(hotNow&&forceOver.sleeves==="Longues")||!coherent([...items,forceOver])) continue; items.push(forceOver); }
       else{
@@ -781,7 +785,10 @@ function generate(){
     const wantOuter={Froid:1,Chaud:0,"Mi-saison":.7,Toutes:.4}[ui.fWeather];
     const hot=items.some(i=>warmth(i)==="chaud");
     const ou2=ou.filter(o=>!hot||warmth(o)!=="froid");
-    if(A?.type==="Veste"){ if(!ou2.includes(A)) continue; items.push(A); }
+    // Jamais de veste avec une chemise
+    const noJacket = items.some(i=>i.type==="Chemise");
+    if(A?.type==="Veste"){ if(noJacket || !ou2.includes(A)) continue; items.push(A); }
+    else if(noJacket){}
     else if(ou2.length && Math.random()<(hot?0:wantOuter)) items.push(pick(ou2));
     const bas = useOne ? null : base[1];
     const nm = (bas?.name||"").toLowerCase();
